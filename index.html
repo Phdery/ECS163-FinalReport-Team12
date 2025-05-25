@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" style="width:100%;height:100%;">
+<head>
+  <meta charset="utf-8">
+  <title>US Salary Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- 直接加载D3和TopoJSON库 -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>US Data Science Salary Map</h1>
+    <svg id="map" width="960" height="600"></svg>
+    <div id="tooltip" class="tooltip" style="opacity:0"></div>
+  </div>
+
+  <!-- 改用普通脚本, 不使用模块方式 -->
+  <script src="stateMap.js"></script>
+</body>
+</html>
