@@ -146,8 +146,19 @@ Promise.all([
       })
       .on("mouseout", function() {
         d3.select(this)
-          .attr("stroke-width", 1)
+          .attr("stroke-width", 1.5)
           .attr("stroke", "#333");
+      })
+      .on("click", function(event, d) {
+        // 获取州缩写
+        const stateAbbr = fipsToAbbr[d.id];
+        if (stateAbbr) {
+          // 触发州选择事件
+          const selectEvent = new CustomEvent("stateSelected", { 
+            detail: { state: stateAbbr } 
+          });
+          document.dispatchEvent(selectEvent);
+        }
       });
     
   // 添加调试矩形，如果能看到这个红色方块，说明SVG元素是可见的
@@ -163,7 +174,8 @@ Promise.all([
     states: states,
     byState: byState,
     stateStats: stateStats,
-    fipsToAbbr: fipsToAbbr
+    fipsToAbbr: fipsToAbbr,
+    usTopo: usTopo  // 添加这一行
   };
   
   console.log("地图渲染完成");
