@@ -2,19 +2,66 @@
 <html lang="en" style="width:100%;height:100%;">
 <head>
   <meta charset="utf-8">
-  <title>US Salary Dashboard</title>
+  <title>SalaryScope - Data Science Career Dashboard</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script src="https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
 </head>
 <body>
   <div class="container">
-    <h1>US Data Science Salary Map</h1>
-    <svg id="map" width="960" height="600"></svg>
-    <div id="tooltip" class="tooltip" style="opacity:0"></div>
+    <header class="dashboard-header">
+      <h1>SalaryScope</h1>
+      <p class="subtitle">Interactive Data Science Career Explorer</p>
+    </header>
+    
+    <!-- Step 1: Geographic Overview -->
+    <section class="map-section">
+      <h2>Where does data science pay the most?</h2>
+      <svg id="map" width="960" height="600"></svg>
+      <div id="tooltip" class="tooltip" style="opacity:0"></div>
+    </section>
+    
+    <!-- Step 2: Skills and Tracks Drill-down -->
+    <section class="drill-down-section">
+      <h2>What roles and skills are in demand?</h2>
+      <div class="viz-row">
+        <div class="sunburst-container">
+          <h3>Job Tracks & Top Skills</h3>
+          <!-- Sunburst will be inserted here dynamically -->
+        </div>
+        <div class="treemap-container">
+          <h3>Company Size Analysis</h3>
+          <div id="treemap"></div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Step 3: Skills Flow Analysis -->
+    <section class="sankey-section">
+      <h2>Which skills lead to higher salaries?</h2>
+      <div id="sankey"></div>
+    </section>
+    
+    <!-- Step 4: Personal Comparison -->
+    <section class="radar-section">
+      <h2>How do you compare to the industry?</h2>
+      <div class="radar-container">
+        <div id="radar"></div>
+      </div>
+    </section>
+    
+    <!-- Navigation breadcrumb -->
+    <div class="breadcrumb">
+      <span id="breadcrumb-text">Click a state to begin exploration</span>
+    </div>
   </div>
   
   <script src="stateMap.js"></script>
   <script src="sunburstGraph.js"></script>
+  <script src="treemap.js"></script>
+  <script src="sankey.js"></script>
+  <script src="radar.js"></script>
+  <script src="dashboard.js"></script>
 </body>
 </html>

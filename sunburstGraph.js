@@ -14,201 +14,93 @@ const skillClusters = {
 };
 
 // Sunburst 图尺寸和配置
-const sunburstWidth = 350;
-const sunburstHeight = 350;
+const sunburstWidth = 300;
+const sunburstHeight = 300;
 const radius = Math.min(sunburstWidth, sunburstHeight) / 2 - 10;
 const color = d3.scaleOrdinal(d3.schemeSet3);
 
 // 初始化函数
 function initSkillsViz() {
-    // 加载数据
-    d3.csv("salary_data_cleaned.csv").then(data => {
-        skillsData = data;
-        
-        // 设置自定义事件监听，当地图上选择了州时更新技能视图
-        document.addEventListener("stateSelected", function(e) {
-            const clickedState = e.detail.state;
-            
-            if (selectedState === clickedState && isVisualizationVisible) {
-                // 如果点击的是同一个州且图表可见，则隐藏
-                hideSkillsViz();
-            } else {
-                // 否则显示或更新图表
-                selectedState = clickedState;
-                updateSkillsViz(selectedState);
-            }
-        });
-    }).catch(error => {
-        console.error("加载数据时发生错误:", error);
+    // 初始状态显示提示
+    clearSunburstContainer();
+    
+    // 设置自定义事件监听
+    document.addEventListener("stateSelected", function(e) {
+        const clickedState = e.detail.state;
+        selectedState = clickedState;
+        updateSkillsViz(selectedState);
     });
 }
 
 // 更新技能可视化
 function updateSkillsViz(state) {
-    if (!skillsData) return;
-    
-    // 过滤选中州的数据
-    const stateData = skillsData.filter(d => d.job_state && d.job_state.trim() === state);
-    
-    // 如果没有数据，隐藏可视化
-    if (stateData.length === 0) {
-        hideSkillsViz();
-        return;
+    // 直接使用dashboard数据
+    if (window.dashboard && window.dashboard.data) {
+        const stateData = window.dashboard.data.filter(d => d.state === state);
+        if (stateData.length > 0) {
+            processStateData(stateData, state);
+            return;
+        }
     }
-
-    // 获取州在地图中的位置
-    const statePosition = getStatePosition(state);
     
-    // 创建或更新可视化容器
-    createOrUpdateContainer(statePosition);
+    // 如果没有数据，清空容器
+    clearSunburstContainer();
+}
+
+// 新增清空容器函数
+function clearSunburstContainer() {
+    const container = d3.select(".sunburst-container");
+    container.selectAll("svg").remove();
+    container.selectAll("p").remove();
+    container.append("p")
+        .style("text-align", "center")
+        .style("color", "#666")
+        .style("margin-top", "50px")
+        .text("Click a state to see job tracks and skills");
+}
+
+// 完全重写容器创建逻辑
+function createOrUpdateContainer(stateName) {
+    // 清除之前的内容
+    const container = d3.select(".sunburst-container");
+    container.selectAll("svg").remove();
+    container.selectAll("p").remove();
+    
+    // 更新标题
+    container.select("h3")
+        .text(`${stateName} - Job Tracks & Skills`);
+    
+    // 在容器中创建SVG
+    const svg = container.append("svg")
+        .attr("width", sunburstWidth)
+        .attr("height", sunburstHeight)
+        .style("display", "block")
+        .style("margin", "0 auto");
+    
+    const g = svg.append("g")
+        .attr("transform", `translate(${sunburstWidth / 2}, ${sunburstHeight / 2})`);
+    
+    return g;
+}
+
+// 新增处理州数据的函数
+function processStateData(stateData, state) {
+    // 创建或更新容器
+    const svgGroup = createOrUpdateContainer(state);
     
     // 构建层次结构数据
     const hierarchyData = buildHierarchyData(stateData);
     
     // 绘制 Sunburst 图
-    drawSunburst(hierarchyData, state);
-    
-    // 显示可视化并添加动效
-    showSkillsVizWithAnimation();
+    drawSunburst(hierarchyData, state, svgGroup);
 }
 
-// 获取州在地图中的中心位置
-function getStatePosition(stateAbbr) {
-    // 首先尝试从地图SVG中直接获取州的位置
-    const mapSvg = d3.select("#map");
-    const mapRect = mapSvg.node().getBoundingClientRect();
-    
-    // 查找对应的州路径元素
-    const statePaths = mapSvg.selectAll("path").nodes();
-    let targetPath = null;
-    
-    // 通过FIPS代码找到对应的路径
-    if (window.debugData && window.debugData.fipsToAbbr) {
-        const abbrToFips = {};
-        Object.keys(window.debugData.fipsToAbbr).forEach(fips => {
-            abbrToFips[window.debugData.fipsToAbbr[fips]] = fips;
-        });
-        
-        const targetFips = abbrToFips[stateAbbr];
-        if (targetFips && window.debugData.states) {
-            const stateIndex = window.debugData.states.findIndex(s => s.id === targetFips);
-            if (stateIndex >= 0 && statePaths[stateIndex]) {
-                targetPath = statePaths[stateIndex];
-            }
-        }
-    }
-    
-    if (targetPath) {
-        // 获取路径的边界框
-        const bbox = targetPath.getBBox();
-        const pathCenterX = bbox.x + bbox.width / 2;
-        const pathCenterY = bbox.y + bbox.height / 2;
-        
-        // 转换为页面坐标
-        const pageX = mapRect.left + pathCenterX;
-        const pageY = mapRect.top + pathCenterY;
-        
-        // 计算图表位置，确保不超出屏幕边界
-        const chartWidth = sunburstWidth + 40;
-        const chartHeight = sunburstHeight + 60;
-        
-        let x = pageX + 150; // 默认放在州的右侧
-        let y = pageY - chartHeight / 2; // 垂直居中
-        
-        // 检查右边界，如果超出则放在左侧
-        if (x + chartWidth > window.innerWidth - 20) {
-            x = pageX - chartWidth - 150;
-        }
-        
-        // 检查上下边界
-        if (y < 20) {
-            y = 20;
-        } else if (y + chartHeight > window.innerHeight - 20) {
-            y = window.innerHeight - chartHeight - 20;
-        }
-        
-        // 确保左边界
-        if (x < 20) {
-            x = 20;
-        }
-        
-        console.log(`州 ${stateAbbr} 的图表位置: x=${x}, y=${y}`);
-        return { x, y };
-    }
-    
-    // 备用方案：放在地图右侧的固定位置
-    const fallbackX = Math.min(mapRect.right + 20, window.innerWidth - sunburstWidth - 60);
-    const fallbackY = Math.max(mapRect.top + 50, 50);
-    
-    console.log(`使用备用位置: x=${fallbackX}, y=${fallbackY}`);
-    return { 
-        x: fallbackX, 
-        y: fallbackY 
-    };
-}
-
-// 创建或更新容器
-function createOrUpdateContainer(position) {
-    // 移除现有容器
-    d3.select(".skills-viz").remove();
-    
-    // 创建新容器，使用fixed定位确保相对于视口
-    const container = d3.select("body")
-        .append("div")
-        .attr("class", "skills-viz")
-        .style("position", "fixed") // 改为fixed定位
-        .style("left", `${position.x}px`)
-        .style("top", `${position.y}px`)
-        .style("width", `${sunburstWidth + 40}px`)
-        .style("height", `${sunburstHeight + 60}px`)
-        .style("background", "rgba(255, 255, 255, 0.95)")
-        .style("border", "2px solid #333")
-        .style("border-radius", "8px")
-        .style("box-shadow", "0 4px 12px rgba(0,0,0,0.15)")
-        .style("padding", "15px")
-        .style("z-index", "1000")
-        .style("opacity", 0)
-        .style("transform", "scale(0.8)")
-        .style("pointer-events", "none")
-        .style("max-width", "90vw") // 确保不超出视口
-        .style("max-height", "90vh");
-    
-    // 添加关闭按钮
-    container.append("div")
-        .style("position", "absolute")
-        .style("top", "5px")
-        .style("right", "10px")
-        .style("cursor", "pointer")
-        .style("font-size", "18px")
-        .style("color", "#666")
-        .style("font-weight", "bold")
-        .style("user-select", "none")
-        .text("×")
-        .on("click", hideSkillsViz);
-    
-    // 添加标题
-    container.append("h3")
-        .attr("class", "skills-title")
-        .style("text-align", "center")
-        .style("margin", "0 0 10px 0")
-        .style("font-size", "14px")
-        .style("color", "#333")
-        .text(`${selectedState}州职位与技能分布`);
-
-    // 添加SVG容器
-    container.append("svg")
-        .attr("width", sunburstWidth)
-        .attr("height", sunburstHeight)
-        .append("g")
-        .attr("transform", `translate(${sunburstWidth / 2},${sunburstHeight / 2})`);
-}
-
-// 构建层次结构数据（改进的职位分类）
+// 添加缺失的 buildHierarchyData 函数
 function buildHierarchyData(stateData) {
     const jobTitles = {};
     
     stateData.forEach(d => {
-        let jobCategory = categorizeJob(d["Job Title"] || "");
+        let jobCategory = categorizeJob(d.title || "");
         
         if (!jobTitles[jobCategory]) {
             jobTitles[jobCategory] = {
@@ -227,7 +119,6 @@ function buildHierarchyData(stateData) {
             });
         }
         
-        // 增加职位计数
         jobTitles[jobCategory].value++;
         
         // 计算每个技能的频率
@@ -249,39 +140,24 @@ function buildHierarchyData(stateData) {
     };
 }
 
-// 改进的职位分类函数
+// 添加缺失的 categorizeJob 函数
 function categorizeJob(jobTitle) {
-    const title = jobTitle.toLowerCase();
+    if (!jobTitle) return "Other";
     
-    if (title.includes("data scientist")) {
-        return "Data Scientist";
-    } else if (title.includes("data engineer") || title.includes("data engineering")) {
-        return "Data Engineer";
-    } else if (title.includes("data analyst") || title.includes("analyst")) {
-        return "Data Analyst";
-    } else if (title.includes("machine learning") || title.includes("ml engineer")) {
-        return "ML Engineer";
-    } else if (title.includes("research scientist") || title.includes("researcher")) {
-        return "Research Scientist";
-    } else if (title.includes("software engineer") || title.includes("software developer")) {
-        return "Software Engineer";
-    } else if (title.includes("product manager") || title.includes("product")) {
-        return "Product Manager";
-    } else if (title.includes("business analyst") || title.includes("business intelligence")) {
-        return "Business Analyst";
-    } else if (title.includes("engineer")) {
-        return "Engineer";
-    } else if (title.includes("manager") || title.includes("director") || title.includes("lead")) {
-        return "Management";
-    } else {
-        return "Other";
-    }
+    const title = jobTitle.toLowerCase();
+    if (title.includes("data scientist")) return "Data Scientist";
+    if (title.includes("data engineer")) return "Data Engineer";
+    if (title.includes("data analyst") || title.includes("analyst")) return "Data Analyst";
+    if (title.includes("machine learning") || title.includes("ml engineer")) return "ML Engineer";
+    if (title.includes("software engineer") || title.includes("developer")) return "Software Engineer";
+    return "Other";
 }
 
 // 绘制 Sunburst 图（添加动效）
-function drawSunburst(hierarchyData, stateName) {
-    const sunburstSvg = d3.select(".skills-viz svg g");
+function drawSunburst(hierarchyData, stateName, sunburstSvg) {
     sunburstSvg.selectAll("*").remove();
+    
+    console.log("Drawing sunburst with data:", hierarchyData);
     
     // 创建分区布局
     const partition = d3.partition()
@@ -371,7 +247,6 @@ function drawSunburst(hierarchyData, stateName) {
             .style("opacity", 1)
             .attr("stroke-width", 3);
         
-        // 显示提示框
         showTooltip(event, d);
     })
     .on("mouseout", function(event, d) {
@@ -389,32 +264,36 @@ function drawSunburst(hierarchyData, stateName) {
 
 // 显示提示框
 function showTooltip(event, d) {
-    let tooltip = d3.select(".sunburst-tooltip");
-    if (tooltip.empty()) {
-        tooltip = d3.select("body").append("div")
-            .attr("class", "sunburst-tooltip")
-            .style("position", "absolute")
-            .style("background", "rgba(0,0,0,0.8)")
-            .style("color", "white")
-            .style("padding", "8px 12px")
-            .style("border-radius", "4px")
-            .style("font-size", "12px")
-            .style("pointer-events", "none")
-            .style("z-index", "10000")
-            .style("opacity", 0);
-    }
+    const tooltip = d3.select("body").selectAll(".treemap-tooltip")
+        .data([null])
+        .join("div")
+        .attr("class", "treemap-tooltip")
+        .style("position", "absolute")
+        .style("background", "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,250,0.95) 100%)")
+        .style("color", "#2c3e50")
+        .style("padding", "12px 16px")
+        .style("border-radius", "8px")
+        .style("font-size", "13px")
+        .style("border", "1px solid rgba(0,0,0,0.1)")
+        .style("pointer-events", "none")
+        .style("z-index", "10000")
+        .style("box-shadow", "0 4px 20px rgba(0,0,0,0.15)")
+        .style("backdrop-filter", "blur(10px)");
     
-    let content = `<strong>${d.data.name}</strong><br>数量: ${d.value}`;
-    if (d.depth === 2 && d.parent) {
-        const percentage = (d.value / d.parent.value * 100).toFixed(1);
-        content += `<br>占比: ${percentage}%`;
-    }
+    // 修复薪资格式化
+    const formatSalary = (salary) => {
+        if (!salary || salary === 0) return "$0.00k";
+        return `$${(salary / 1000).toFixed(2)}k`;
+    };
     
-    tooltip.html(content)
-        .style("left", (event.pageX + 10) + "px")
-        .style("top", (event.pageY - 28) + "px")
-        .transition()
-        .duration(200)
+    tooltip.html(`
+        <div style="font-weight: 600; color: #1976d2; margin-bottom: 8px;">${d.data.name}</div>
+        <div style="margin: 4px 0;"><strong>Job Count:</strong> ${d.data.jobs}</div>
+        <div style="margin: 4px 0;"><strong>Average Salary:</strong> ${formatSalary(d.data.avgSalary)}</div>
+        <div style="margin: 4px 0;"><strong>Salary Range:</strong> ${formatSalary(d.data.minSalary)} - ${formatSalary(d.data.maxSalary)}</div>
+    `)
+        .style("left", (event.pageX + 15) + "px")
+        .style("top", (event.pageY - 10) + "px")
         .style("opacity", 1);
 }
 
@@ -424,40 +303,6 @@ function hideTooltip() {
         .transition()
         .duration(200)
         .style("opacity", 0);
-}
-
-// 显示可视化并添加动效
-function showSkillsVizWithAnimation() {
-    const container = d3.select(".skills-viz");
-    
-    container
-        .style("pointer-events", "all")
-        .transition()
-        .duration(500)
-        .ease(d3.easeBackOut)
-        .style("opacity", 1)
-        .style("transform", "scale(1)");
-    
-    isVisualizationVisible = true;
-}
-
-// 隐藏技能可视化
-function hideSkillsViz() {
-    const container = d3.select(".skills-viz");
-    
-    container
-        .transition()
-        .duration(300)
-        .ease(d3.easeBackIn)
-        .style("opacity", 0)
-        .style("transform", "scale(0.8)")
-        .on("end", function() {
-            container.remove();
-        });
-    
-    hideTooltip();
-    isVisualizationVisible = false;
-    selectedState = null;
 }
 
 // 确保文档加载完成后初始化

@@ -34,11 +34,37 @@ window.store = window.store || {};
 //--------------------------------------------
 Promise.all([
   d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json"),
-  d3.csv("salary_data_cleaned.csv", d => ({
-      state: d.job_state.trim(), // 确保去除可能的空格
-      avg: +d.avg_salary,
-      title: d.job_title
-  }))
+  d3.csv("salary_data_cleaned.csv", d => {
+    // 从Location字段提取州缩写
+    let state = "";
+    if (d.Location) {
+      const match = d.Location.match(/,\s*([A-Z]{2})\s*$/);
+      state = match ? match[1] : "";
+    }
+    
+    return {
+      state: state,
+      avg: +d.avg_salary || 0,
+      min: +d.min_salary || 0,
+      max: +d.max_salary || 0,
+      title: d["Job Title"] || "",
+      location: d.Location || "",
+      company: d["Company Name"] || "",
+      size: d.Size || "",
+      revenue: d.Revenue || "",
+      // 技能字段
+      python_yn: +(d.python_yn || 0),
+      R_yn: +(d.R_yn || 0),
+      spark: +(d.spark || 0),
+      aws: +(d.aws || 0),
+      excel: +(d.excel || 0),
+      // 其他有用字段
+      rating: +d.Rating || 0,
+      founded: +d.Founded || 0,
+      industry: d.Industry || "",
+      sector: d.Sector || ""
+    };
+  })
 ]).then(([usTopo, rows]) => {
   // 检查CSV数据中的州缩写
   console.log("CSV中的州缩写列表:", [...new Set(rows.map(d => d.state))]);
@@ -139,17 +165,64 @@ Promise.all([
       .attr("stroke", "#333")
       .attr("stroke-width", 1.5) // 增加边框宽度使其更明显
       .attr("opacity", 1)
-      .on("mouseover", function() {
+      .style("transition", "all 0.3s ease") // 添加过渡效果
+      .style("transform-origin", "center") // 设置变换原点
+      .on("mouseover", function(event, d) {
+        const stateAbbr = fipsToAbbr[d.id];
+        
+        // 添加放大和高亮效果
         d3.select(this)
-          .attr("stroke-width", 2)
-          .attr("stroke", "#000");
+          .transition()
+          .duration(200)
+          .style("transform", "scale(1.05)") // 放大5%
+          .attr("stroke-width", 3)
+          .attr("stroke", "#000")
+          .style("filter", "drop-shadow(0 4px 8px rgba(0,0,0,0.3))")
+          .style("z-index", "10");
+        
+        // 显示tooltip
+        if (stateAbbr) {
+          const stateData = salaryMap.get(stateAbbr);
+          if (stateData) {
+            const tooltip = d3.select("#tooltip");
+            tooltip.transition().duration(200).style("opacity", 1);
+            tooltip.html(`
+              <strong>${stateAbbr}</strong><br>
+              Jobs: ${stateData.n}<br>
+              Avg Salary: $${(stateData.avg / 1000).toFixed(2)}k
+            `)
+              .style("left", (event.pageX + 10) + "px")
+              .style("top", (event.pageY - 28) + "px");
+          }
+        }
       })
       .on("mouseout", function() {
+        // 恢复原始状态
         d3.select(this)
+          .transition()
+          .duration(200)
+          .style("transform", "scale(1)")
           .attr("stroke-width", 1.5)
-          .attr("stroke", "#333");
+          .attr("stroke", "#333")
+          .style("filter", "none")
+          .style("z-index", "auto");
+        
+        // 隐藏tooltip
+        d3.select("#tooltip").transition().duration(200).style("opacity", 0);
       })
       .on("click", function(event, d) {
+        // 点击效果 - 先缩小再恢复，增加反馈感
+        d3.select(this)
+          .transition()
+          .duration(100)
+          .style("transform", "scale(0.95)")
+          .transition()
+          .duration(200)
+          .style("transform", "scale(1.05)")
+          .transition()
+          .duration(200)
+          .style("transform", "scale(1)");
+        
         // 获取州缩写
         const stateAbbr = fipsToAbbr[d.id];
         if (stateAbbr) {
@@ -175,7 +248,8 @@ Promise.all([
     byState: byState,
     stateStats: stateStats,
     fipsToAbbr: fipsToAbbr,
-    usTopo: usTopo  // 添加这一行
+    usTopo: usTopo,
+    rows: rows  // 添加原始数据以供其他组件使用
   };
   
   console.log("地图渲染完成");
