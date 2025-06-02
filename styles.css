@@ -1,6 +1,6 @@
-/* 重新设计整个页面的视觉风格 */
+/* Complete visual style redesign for the entire page */
 
-/* 基础样式重置和全局设置 */
+/* Basic style reset and global configuration */
 * {
   margin: 0;
   padding: 0;
@@ -16,7 +16,7 @@ body {
   overflow-x: hidden;
 }
 
-/* 容器和布局 */
+/* Container and layout */
 .container {
   max-width: 1400px;
   margin: 0 auto;
@@ -24,7 +24,7 @@ body {
   position: relative;
 }
 
-/* 华丽的头部设计 */
+/* Elegant header design */
 .dashboard-header {
   text-align: center;
   padding: 80px 40px;
@@ -78,7 +78,7 @@ body {
   letter-spacing: 1px;
 }
 
-/* Section样式 - Storytelling布局 */
+/* Section styles - Storytelling layout */
 section {
   margin: 0;
   padding: 80px 40px;
@@ -135,7 +135,7 @@ section h2::after {
   to { width: 100px; }
 }
 
-/* 地图section特殊样式 */
+/* Special styles for map section */
 .map-section {
   background: radial-gradient(ellipse at center, #ffffff 0%, #f8f9fa 100%);
   text-align: center;
@@ -155,7 +155,7 @@ section h2::after {
   box-shadow: 0 30px 60px rgba(0,0,0,0.15);
 }
 
-/* Drill-down section动效 */
+/* Drill-down section animation effects */
 .drill-down-section {
   background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
 }
@@ -210,7 +210,7 @@ section h2::after {
   position: relative;
 }
 
-/* Sankey section样式 */
+/* Sankey section styles */
 .sankey-section {
   background: linear-gradient(135deg, #fff3e0 0%, #fce4ec 100%);
   text-align: center;
@@ -230,7 +230,7 @@ section h2::after {
   box-shadow: 0 25px 50px rgba(0,0,0,0.15);
 }
 
-/* Radar section样式 */
+/* Radar section styles */
 .radar-section {
   background: linear-gradient(135deg, #f1f8e9 0%, #e8f5e8 100%);
 }
@@ -256,7 +256,7 @@ section h2::after {
   box-shadow: 0 25px 50px rgba(0,0,0,0.15);
 }
 
-/* 面包屑导航美化 */
+/* Enhanced breadcrumb navigation */
 .breadcrumb {
   position: fixed;
   top: 30px;
@@ -279,7 +279,7 @@ section h2::after {
   background: rgba(0,0,0,0.9);
 }
 
-/* 滚动动效 */
+/* Scroll animation effects */
 section {
   opacity: 0;
   transform: translateY(50px);
@@ -298,7 +298,7 @@ section:nth-child(2) { animation-delay: 0.2s; }
 section:nth-child(3) { animation-delay: 0.3s; }
 section:nth-child(4) { animation-delay: 0.4s; }
 
-/* Tooltip统一美化 */
+/* Unified tooltip beautification */
 .tooltip, .treemap-tooltip, .sankey-tooltip, .sunburst-tooltip {
   position: absolute;
   background: rgba(0,0,0,0.9);
@@ -315,7 +315,7 @@ section:nth-child(4) { animation-delay: 0.4s; }
   max-width: 300px;
 }
 
-/* 响应式设计增强 */
+/* Enhanced responsive design */
 @media (max-width: 1200px) {
   .viz-row {
     flex-direction: column;
@@ -351,7 +351,7 @@ section:nth-child(4) { animation-delay: 0.4s; }
   }
 }
 
-/* 加载动画 */
+/* Loading animation */
 .loading {
   display: flex;
   justify-content: center;
@@ -377,17 +377,17 @@ section:nth-child(4) { animation-delay: 0.4s; }
   100% { transform: rotate(360deg); }
 }
 
-/* 平滑滚动 */
+/* Smooth scrolling */
 html {
   scroll-behavior: smooth;
 }
 
-/* 鼠标悬停的微交互 */
+/* Hover micro-interactions */
 button, .cell, path, .link, .node {
   transition: all 0.3s ease;
 }
 
-/* 选中状态样式 */
+/* Selected state styles */
 .selected {
   transform: scale(1.05);
   filter: brightness(1.1);

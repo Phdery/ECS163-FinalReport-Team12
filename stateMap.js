@@ -1,64 +1,111 @@
 /*
-  US Salary Choropleth – D3 v7
+  US Salary Choropleth Map – D3 v7
+  Interactive map showing salary distribution across US states
+  Features hover effects, tooltips, and state selection functionality
 */
 
-// 不再需要import语句，因为已在HTML中加载库
-console.log("D3版本:", d3.version);
-console.log("feature函数:", typeof topojson.feature);
+// No need for import statements since libraries are loaded in HTML
+console.log("D3 version:", d3.version);
+console.log("TopoJSON feature function:", typeof topojson.feature);
 
 //--------------------------------------------
-// CONFIG
+// CONFIGURATION
 //--------------------------------------------
 const width = 960,
       height = 600,
+      // Color interpolation functions for temperature mapping
       warm = d3.interpolateOranges,
       cool = d3.interpolateGnBu,
+      // d3.scaleLinear() creates linear scale mapping sample size to border width
       borderScale = d3.scaleLinear([20, 5000], [0.5, 4]); // sample → stroke-width
 
+// d3.select() selects DOM element and creates D3 selection object
 const svg = d3.select("#map")
   .attr("width", width)
   .attr("height", height)
-  .style("background-color", "#f9f9f9") // 添加背景色以便看到边界
-  .style("display", "block") // 确保显示模式正确
-  .style("margin", "0 auto") // 居中显示
-  .attr("viewBox", [0, 0, width, height]);
+  .style("background-color", "#f9f9f9") // Add background color for visibility
+  .style("display", "block") // Ensure proper display mode
+  .style("margin", "0 auto") // Center horizontally
+  .attr("viewBox", [0, 0, width, height]); // Set responsive viewBox
 
-// 调试2: 检查SVG元素是否被选中
-console.log("SVG元素:", svg.node());
+// Debug: Check if SVG element is properly selected
+console.log("SVG element:", svg.node());
 
-// global store
+// Global state store for cross-component communication
 window.store = window.store || {};
 
+// Create tooltip element for state information display
+const tooltip = d3.select("body").append("div")
+  .attr("id", "tooltip")
+  .style("position", "absolute")
+  .style("background", "rgba(0, 0, 0, 0.9)")
+  .style("color", "white")
+  .style("padding", "8px 12px")
+  .style("border-radius", "4px")
+  .style("font-size", "12px")
+  .style("font-family", "Arial, sans-serif")
+  .style("pointer-events", "none")
+  .style("opacity", 0)
+  .style("z-index", "10000")
+  .style("white-space", "nowrap")
+  .style("box-shadow", "0 4px 12px rgba(0,0,0,0.4)")
+  .style("border", "1px solid rgba(255,255,255,0.2)");
+
 //--------------------------------------------
-// LOAD DATA
+// DATA LOADING AND PROCESSING
 //--------------------------------------------
+// Promise.all() loads multiple data sources concurrently
 Promise.all([
+  // d3.json() loads and parses JSON data asynchronously
   d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json"),
+  // d3.csv() loads and parses CSV with data transformation function
   d3.csv("salary_data_cleaned.csv", d => {
-    // 从Location字段提取州缩写
+    // Extract state abbreviation from Location field using regex
     let state = "";
     if (d.Location) {
       const match = d.Location.match(/,\s*([A-Z]{2})\s*$/);
       state = match ? match[1] : "";
     }
     
+    // Parse salary values correctly - handle different field names and formats
+    let avgSalary = 0;
+    
+    // Try different possible field names for salary data
+    if (d.avg_salary) {
+      avgSalary = parseFloat(d.avg_salary.toString().replace(/,/g, '')) || 0;
+    } else if (d['Salary Estimate']) {
+      // Extract numeric values from salary estimate strings like "$50K-$80K"
+      const salaryMatch = d['Salary Estimate'].match(/\$?(\d+(?:,\d{3})*(?:\.\d{2})?)[Kk]?/g);
+      if (salaryMatch && salaryMatch.length >= 1) {
+        const salary = parseFloat(salaryMatch[0].replace(/[$,Kk]/g, ''));
+        // If value is in thousands format (like "50K"), multiply by 1000
+        avgSalary = salaryMatch[0].includes('K') || salaryMatch[0].includes('k') ? salary * 1000 : salary;
+      }
+    }
+    
+    // Ensure salary is in reasonable range (30k - 300k)
+    if (avgSalary > 0 && avgSalary < 1000) {
+      avgSalary = avgSalary * 1000; // Convert from thousands to actual dollars
+    }
+    
+    // Return transformed data object with type conversion
     return {
       state: state,
-      avg: +d.avg_salary || 0,
-      min: +d.min_salary || 0,
-      max: +d.max_salary || 0,
+      avg: avgSalary,    // Corrected salary parsing
+      min: parseFloat((d.min_salary || '').toString().replace(/,/g, '')) || avgSalary * 0.8,
+      max: parseFloat((d.max_salary || '').toString().replace(/,/g, '')) || avgSalary * 1.2,
       title: d["Job Title"] || "",
       location: d.Location || "",
       company: d["Company Name"] || "",
       size: d.Size || "",
       revenue: d.Revenue || "",
-      // 技能字段
+      // Skill flags converted to numbers
       python_yn: +(d.python_yn || 0),
       R_yn: +(d.R_yn || 0),
       spark: +(d.spark || 0),
       aws: +(d.aws || 0),
       excel: +(d.excel || 0),
-      // 其他有用字段
+      // Additional metadata
       rating: +d.Rating || 0,
       founded: +d.Founded || 0,
       industry: d.Industry || "",
@@ -66,50 +113,59 @@ Promise.all([
     };
   })
 ]).then(([usTopo, rows]) => {
-  // 检查CSV数据中的州缩写
-  console.log("CSV中的州缩写列表:", [...new Set(rows.map(d => d.state))]);
+  // Filter out records with invalid or zero salaries
+  const validRows = rows.filter(d => d.avg > 0 && d.state);
   
-  // 原有代码继续...
-  // 调试3: 检查TopoJSON和CSV数据
-  console.log("TopoJSON数据:", usTopo);
-  console.log("CSV前10行:", rows.slice(0, 10));
+  // Debug: Check salary data after parsing
+  console.log("Salary data sample after parsing:", validRows.slice(0, 5).map(d => ({
+    state: d.state,
+    avgSalary: d.avg,
+    title: d.title
+  })));
   
-  // Aggregate salary by state
-  const byState = d3.group(rows, d => d.state);
+  // Debug: Check unique state abbreviations in CSV
+  console.log("State abbreviations in CSV:", [...new Set(validRows.map(d => d.state))]);
   
-  // 调试4: 检查按州分组的数据
-  console.log("按州分组数据:", byState);
+  // Group salary data by state using d3.group()
+  // d3.group() creates Map grouped by key function
+  const byState = d3.group(validRows, d => d.state);
   
-  // 调整州缩写数据格式，确保与CSV中保持一致 
+  // Debug: Check grouped data structure
+  console.log("Data grouped by state:", byState);
+  
+  // Calculate state statistics with correct salary aggregation
   const stateStats = Array.from(byState, ([state, list]) => {
     return {
-      state: state.trim(), // 确保去除可能的空格
-      n: list.length,
+      state: state.trim(), // Remove potential whitespace
+      n: list.length,      // Number of job postings
+      // d3.mean() calculates average salary for each state
       avg: d3.mean(list, d => d.avg)
     };
-  });
+  }).filter(d => d.avg > 0); // Filter out states with invalid averages
   
-  // 调试5: 检查州统计数据
-  console.log("州统计数据:", stateStats);
+  // Debug: Check state statistics with actual salary values
+  console.log("State statistics sample:", stateStats.slice(0, 5));
   
+  // d3.median() calculates national median salary for comparison
   const nationalMedian = d3.median(stateStats, d => d.avg);
-  console.log("全国薪资中位数:", nationalMedian);
+  console.log("National median salary:", nationalMedian);
 
+  // Create Map for O(1) state data lookup
   const salaryMap = new Map(stateStats.map(d => [d.state, d]));
   
-  // 调试6: 检查薪资映射表
-  console.log("薪资映射表:", Array.from(salaryMap.entries()).slice(0, 5));
+  // Debug: Show salary range for validation
+  const salaryValues = stateStats.map(d => d.avg);
+  console.log("Salary range:", {
+    min: d3.min(salaryValues),
+    max: d3.max(salaryValues),
+    median: d3.median(salaryValues)
+  });
 
+  // Extract state features from TopoJSON using topojson.feature()
+  // topojson.feature() converts TopoJSON to GeoJSON features
   const states = topojson.feature(usTopo, usTopo.objects.states).features;
   
-  // 调试7: 检查州地理特征数据
-  console.log("州地理特征数据前5个:", states.slice(0, 5));
-  
-  // 调试8: 检查州ID与CSV中的state字段是否匹配
-  console.log("第一个州的ID:", states[0].id);
-  console.log("第一个州在salaryMap中是否存在:", salaryMap.has(states[0].id));
-  
-  // 创建一个FIPS代码到州缩写的映射表(示例，实际应完整)
+  // FIPS code to state abbreviation mapping table (complete mapping for all US states)
   const fipsToAbbr = {
     "01":"AL", "02":"AK", "04":"AZ", "05":"AR", "06":"CA", 
     "08":"CO", "09":"CT", "10":"DE", "12":"FL", "13":"GA",
@@ -123,173 +179,267 @@ Promise.all([
     "51":"VA", "53":"WA", "54":"WV", "55":"WI", "56":"WY"
   };
 
-  // COLOR FUNCTION
+  // COLOR MAPPING FUNCTION
+  // Determines fill color based on salary comparison to national median
   function stateColor(s) {
-    // 使用FIPS码获取对应的州缩写
+    // Get state abbreviation from FIPS code
     const abbr = fipsToAbbr[s.id];
     
-    // 使用缩写查找数据
+    // Lookup salary data for this state
     const rec = abbr ? salaryMap.get(abbr) : null;
     
-    if (!rec) return "#ddd"; // 更明显的灰色
+    // Return neutral gray if no data available
+    if (!rec) return "#ddd";
     
-    const t = (rec.avg - nationalMedian) / nationalMedian; // relative diff
-    // 使用更鲜明的颜色
+    // Calculate relative difference from national median
+    const t = (rec.avg - nationalMedian) / nationalMedian;
+    // Use red scale for above-median, blue scale for below-median
+    // d3.interpolateReds() and d3.interpolateBlues() provide color interpolation
     return t >= 0 ? d3.interpolateReds(Math.min(t, 1) * 0.7 + 0.3) : d3.interpolateBlues(Math.min(-t, 1) * 0.7 + 0.3);
   }
 
   //----------------------------------------
-  // DRAW MAP
+  // MAP RENDERING
   //----------------------------------------
-  // 添加一个黑色背景矩形作为参考
+  // Add background rectangle for visual reference
   svg.insert("rect", ":first-child")
     .attr("width", width)
     .attr("height", height)
     .attr("fill", "#f0f0f0");
 
-  // 确保地图投影正确
+  // Create Albers USA projection fitted to viewport
+  // d3.geoAlbersUsa() provides optimized projection for US maps
   const projection = d3.geoAlbersUsa()
+    // fitSize() scales and translates projection to fit given dimensions
     .fitSize([width, height], topojson.feature(usTopo, usTopo.objects.states));
     
+  // Create path generator using the projection
+  // d3.geoPath() converts GeoJSON features to SVG path strings
   const path = d3.geoPath().projection(projection);
 
-  // 重新绘制地图
-  svg.selectAll("path").remove(); // 移除现有路径
+  // Clear any existing paths before redrawing
+  // selectAll() selects all matching elements for data binding
+  svg.selectAll("path").remove();
 
+  // Create state paths with interactive features
   svg.append("g")
     .selectAll("path")
-    .data(states)
-    .join("path")
-      .attr("d", path) // 使用正确的投影路径
-      .attr("fill", stateColor)
-      .attr("stroke", "#333")
-      .attr("stroke-width", 1.5) // 增加边框宽度使其更明显
-      .attr("opacity", 1)
-      .style("transition", "all 0.3s ease") // 添加过渡效果
-      .style("transform-origin", "center") // 设置变换原点
+    .data(states) // Bind state feature data
+    .join("path") // Create path elements for each state using data join
+      .attr("d", path) // Set path data using path generator
+      .attr("fill", stateColor) // Apply color based on salary data
+      .attr("stroke", "#333") // Dark border color
+      .attr("stroke-width", 1.5) // Increase border width for visibility
+      .attr("opacity", 1) // Full opacity
+      .style("transition", "all 0.3s ease") // Add smooth transitions for interactions
+      .style("cursor", "pointer") // Show pointer cursor on hover
+      // MOUSEOVER EVENT: Highlight and show tooltip
       .on("mouseover", function(event, d) {
         const stateAbbr = fipsToAbbr[d.id];
         
-        // 添加放大和高亮效果
+        // Bring hovered state to front by setting high z-index
+        // parentNode.appendChild() moves element to end of parent, making it render last (on top)
+        this.parentNode.appendChild(this);
+        
+        // Apply visual emphasis using d3 transitions
+        // d3.select(this) selects current element, transition() creates smooth animation
         d3.select(this)
           .transition()
           .duration(200)
-          .style("transform", "scale(1.05)") // 放大5%
-          .attr("stroke-width", 3)
-          .attr("stroke", "#000")
-          .style("filter", "drop-shadow(0 4px 8px rgba(0,0,0,0.3))")
-          .style("z-index", "10");
+          .attr("stroke-width", 4) // Thicker border
+          .attr("stroke", "#000") // Black border
+          .style("filter", "drop-shadow(0 4px 8px rgba(0,0,0,0.5))"); // Enhanced shadow effect
         
-        // 显示tooltip
+        // Show tooltip with state information
         if (stateAbbr) {
           const stateData = salaryMap.get(stateAbbr);
           if (stateData) {
-            const tooltip = d3.select("#tooltip");
+            // Use mouse position directly for more precise tooltip positioning
+            // This ensures tooltip appears right next to the cursor
+            const mouseX = event.pageX;
+            const mouseY = event.pageY;
+            
+            // Position tooltip very close to mouse cursor with small offset
+            const tooltipX = mouseX + 10;
+            const tooltipY = mouseY - 50;
+            
+            // d3.select() gets tooltip element and modifies its properties
             tooltip.transition().duration(200).style("opacity", 1);
             tooltip.html(`
-              <strong>${stateAbbr}</strong><br>
-              Jobs: ${stateData.n}<br>
-              Avg Salary: $${(stateData.avg / 1000).toFixed(2)}k
+              <div style="font-weight: bold; margin-bottom: 4px;">${stateAbbr}</div>
+              <div>Jobs: ${stateData.n}</div>
+              <div>Avg Salary: $${(stateData.avg / 1000).toFixed(0)}k</div>
+              <div style="font-size: 11px; margin-top: 4px; opacity: 0.8;">
+                ${stateData.avg > nationalMedian ? 'Above' : 'Below'} national median
+              </div>
             `)
-              .style("left", (event.pageX + 10) + "px")
-              .style("top", (event.pageY - 28) + "px");
+              .style("left", tooltipX + "px")
+              .style("top", tooltipY + "px");
           }
         }
       })
+      // MOUSEOUT EVENT: Reset visual state
       .on("mouseout", function() {
-        // 恢复原始状态
+        // Restore original appearance
         d3.select(this)
           .transition()
           .duration(200)
-          .style("transform", "scale(1)")
-          .attr("stroke-width", 1.5)
-          .attr("stroke", "#333")
-          .style("filter", "none")
-          .style("z-index", "auto");
+          .attr("stroke-width", 1.5) // Reset border
+          .attr("stroke", "#333") // Reset border color
+          .style("filter", "none"); // Remove shadow
         
-        // 隐藏tooltip
-        d3.select("#tooltip").transition().duration(200).style("opacity", 0);
+        // Hide tooltip
+        tooltip.transition().duration(200).style("opacity", 0);
       })
+      // CLICK EVENT: State selection with feedback animation
       .on("click", function(event, d) {
-        // 点击效果 - 先缩小再恢复，增加反馈感
+        // Provide tactile feedback with squeeze animation
         d3.select(this)
           .transition()
           .duration(100)
-          .style("transform", "scale(0.95)")
+          .style("transform", "scale(0.95)") // Compress
           .transition()
           .duration(200)
-          .style("transform", "scale(1.05)")
+          .style("transform", "scale(1.05)") // Expand
           .transition()
           .duration(200)
-          .style("transform", "scale(1)");
+          .style("transform", "scale(1)"); // Return to normal
         
-        // 获取州缩写
+        // Get state abbreviation
         const stateAbbr = fipsToAbbr[d.id];
         if (stateAbbr) {
-          // 触发州选择事件
+          // Dispatch custom event for state selection
           const selectEvent = new CustomEvent("stateSelected", { 
             detail: { state: stateAbbr } 
           });
           document.dispatchEvent(selectEvent);
         }
       });
-    
-  // 添加调试矩形，如果能看到这个红色方块，说明SVG元素是可见的
-  svg.append("rect")
-    .attr("width", 50)
-    .attr("height", 50)
-    .attr("x", 10)
-    .attr("y", 10)
-    .attr("fill", "red");
 
-  // 调试用：保存状态到全局变量
+  // Add color legend for salary interpretation positioned to cover about 1/10 of map width
+  const legendWidth = width * 0.18; // Approximately 1/5 of map width for better visibility
+  const legendHeight = 20;
+  const legendX = width - legendWidth - width * 0.1; // Position further left from right edge
+  const legendY = 30; // Position in upper area
+  
+  // Create legend group
+  const legend = svg.append("g")
+    .attr("class", "legend")
+    .attr("transform", `translate(${legendX}, ${legendY})`);
+  
+  // Create gradient definition for legend
+  const defs = svg.append("defs");
+  const gradient = defs.append("linearGradient")
+    .attr("id", "salary-gradient")
+    .attr("x1", "0%")
+    .attr("x2", "100%");
+  
+  // Add gradient stops for color scale
+  gradient.append("stop")
+    .attr("offset", "0%")
+    .attr("style", "stop-color:" + d3.interpolateBlues(0.7) + ";stop-opacity:1");
+  
+  gradient.append("stop")
+    .attr("offset", "50%")
+    .attr("style", "stop-color:#ddd;stop-opacity:1");
+    
+  gradient.append("stop")
+    .attr("offset", "100%")
+    .attr("style", "stop-color:" + d3.interpolateReds(0.7) + ";stop-opacity:1");
+  
+  // Add legend rectangle with gradient fill (no background, transparent)
+  legend.append("rect")
+    .attr("width", legendWidth)
+    .attr("height", legendHeight)
+    .attr("fill", "url(#salary-gradient)")
+    .attr("stroke", "#333")
+    .attr("stroke-width", 1);
+  
+  // Add legend labels
+  legend.append("text")
+    .attr("x", 0)
+    .attr("y", legendHeight + 15)
+    .attr("font-size", "10px")
+    .attr("fill", "#333")
+    .text("Below Median");
+  
+  legend.append("text")
+    .attr("x", legendWidth / 2)
+    .attr("y", legendHeight + 15)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "10px")
+    .attr("fill", "#333")
+    .text(`$${(nationalMedian / 1000).toFixed(0)}k`);
+  
+  legend.append("text")
+    .attr("x", legendWidth)
+    .attr("y", legendHeight + 15)
+    .attr("text-anchor", "end")
+    .attr("font-size", "10px")
+    .attr("fill", "#333")
+    .text("Above Median");
+  
+  // Add legend title
+  legend.append("text")
+    .attr("x", legendWidth / 2)
+    .attr("y", -8)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "12px")
+    .attr("font-weight", "bold")
+    .attr("fill", "#333")
+    .text("Average Salary");
+
+  // Store processed data globally for other components
   window.debugData = {
     states: states,
     byState: byState,
     stateStats: stateStats,
     fipsToAbbr: fipsToAbbr,
     usTopo: usTopo,
-    rows: rows  // 添加原始数据以供其他组件使用
+    rows: validRows  // Use filtered valid data
   };
   
-  console.log("地图渲染完成");
+  console.log("Map rendering completed");
 }).catch(error => {
-  // 调试错误捕获
-  console.error("加载数据出错:", error);
+  // Error handling for data loading failures
+  console.error("Error loading data:", error);
 });
 
-// 在绘制地图函数之后添加
-// 检查地图路径是否真的被添加到DOM
+// POST-RENDER VALIDATION
+// Check if map paths were actually added to DOM after rendering
 setTimeout(() => {
+  // selectAll().nodes() returns array of actual DOM elements
   const paths = svg.selectAll("path").nodes();
-  console.log(`实际创建的路径数量: ${paths.length}`);
+  console.log(`Actual number of paths created: ${paths.length}`);
   
-  // 检查第一个路径元素的属性
+  // Inspect first path element attributes
   if (paths.length > 0) {
     const firstPath = d3.select(paths[0]);
-    console.log("第一个路径的填充色:", firstPath.attr("fill"));
-    console.log("第一个路径的描边颜色:", firstPath.attr("stroke"));
-    console.log("第一个路径的描边宽度:", firstPath.attr("stroke-width"));
-    console.log("第一个路径的不透明度:", firstPath.attr("opacity"));
-    console.log("第一个路径的d属性:", firstPath.attr("d").substring(0, 50) + "...");
+    console.log("First path fill color:", firstPath.attr("fill"));
+    console.log("First path stroke color:", firstPath.attr("stroke"));
+    console.log("First path stroke width:", firstPath.attr("stroke-width"));
+    console.log("First path opacity:", firstPath.attr("opacity"));
+    console.log("First path data:", firstPath.attr("d").substring(0, 50) + "...");
   }
 }, 1000);
 
 //--------------------------------------------
-// STYLE (could be moved to CSS)
+// DYNAMIC STYLING
 //--------------------------------------------
 const style = document.createElement("style");
 style.textContent = `
   .map-tooltip{background:#fff;border:1px solid #ccc;padding:6px 10px;border-radius:4px;font:12px sans-serif;}
   path.selected{stroke:#000;stroke-width:4px !important;}
+  .legend text{font-family: Arial, sans-serif;}
 `;
 document.head.appendChild(style);
 
-// 全局调试函数
+// DEBUGGING UTILITIES
+// Global functions for development and troubleshooting
 window.debugMap = {
   showStateMappings: () => {
     if (!window.debugData) {
-      console.error("尚未加载数据");
+      console.error("Data not loaded yet");
       return;
     }
     

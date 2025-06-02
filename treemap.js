@@ -1,35 +1,55 @@
-// 公司规模薪资对比 - Treemap
+/*
+  Company Size Salary Analysis - Treemap Visualization
+  Shows salary distribution across different company sizes using rectangular tree layout
+  Features hover effects, sparklines, and interactive selection for drill-down analysis
+*/
+
 class TreemapViz {
   constructor(containerId) {
+    // d3.select() creates D3 selection object for DOM element manipulation
     this.container = d3.select(containerId);
     this.width = 400;
     this.height = 300;
     this.margin = { top: 20, right: 20, bottom: 20, left: 20 };
     
+    // Create SVG container with gradient background for modern appearance
     this.svg = this.container.append("svg")
       .attr("width", this.width)
       .attr("height", this.height)
       .style("background", "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)")
       .style("border-radius", "8px");
       
-    // 使用更柔和的颜色方案
+    // Create sequential color scale for salary visualization
+    // d3.scaleSequential() maps continuous values to interpolated colors
+    // d3.interpolateRgb() creates smooth color transition between two colors
     this.colorScale = d3.scaleSequential()
-      .interpolator(d3.interpolateRgb("#e8f4fd", "#1e88e5")); // 浅蓝到深蓝
+      .interpolator(d3.interpolateRgb("#e8f4fd", "#1e88e5"));
     
     this.init();
   }
   
+  /**
+   * Initialize treemap layout and container group
+   * Sets up the D3 treemap algorithm configuration
+   */
   init() {
+    // Create D3 treemap layout algorithm
+    // d3.treemap() partitions rectangular area based on hierarchical data values
     this.treemap = d3.treemap()
       .size([this.width - this.margin.left - this.margin.right, 
              this.height - this.margin.top - this.margin.bottom])
       .padding(2)
       .round(true);
       
+    // Create group element for chart content with margin transformation
     this.g = this.svg.append("g")
       .attr("transform", `translate(${this.margin.left},${this.margin.top})`);
   }
   
+  /**
+   * Categorize company size from various text formats
+   * Standardizes different size descriptions into consistent categories
+   */
   categorizeCompanySize(size) {
     if (!size || size === "-1" || size === "Unknown") return "Unknown";
     
@@ -44,69 +64,81 @@ class TreemapViz {
     return "Unknown";
   }
   
+  /**
+   * Update treemap with new data and optional job track filter
+   * Main rendering function called when data changes or filters are applied
+   */
   update(data, selectedTrack = null) {
-    // 按职位类别过滤数据
+    // Filter data by job track if specified
     let filteredData = data;
     if (selectedTrack) {
       filteredData = data.filter(d => this.categorizeJob(d.title) === selectedTrack);
     }
     
-    // 按公司规模分组
+    // Group jobs by company size category
+    // d3.group() creates Map with company size as key and job arrays as values
     const sizeGroups = d3.group(filteredData, d => this.categorizeCompanySize(d.size));
     
-    // 构建层次数据
+    // Transform grouped data into hierarchical structure for treemap
     const hierarchyData = {
       name: "root",
       children: Array.from(sizeGroups, ([size, jobs]) => ({
         name: size,
         value: jobs.length,
+        // d3.mean() calculates average salary across all jobs in this size category
         avgSalary: d3.mean(jobs, d => d.avg),
+        // d3.min() and d3.max() find salary range bounds
         minSalary: d3.min(jobs, d => d.min),
         maxSalary: d3.max(jobs, d => d.max),
         jobs: jobs.length
       }))
     };
     
-    // 更新颜色比例尺
+    // Update color scale domain based on current salary range
     const salaries = hierarchyData.children.map(d => d.avgSalary).filter(d => d);
     if (salaries.length > 0) {
+      // d3.extent() returns [minimum, maximum] array for domain setting
       const [minSalary, maxSalary] = d3.extent(salaries);
       this.colorScale.domain([minSalary, maxSalary]);
     }
     
-    // 创建层次结构
+    // Create D3 hierarchy structure from nested data
+    // d3.hierarchy() converts nested data to tree structure with parent-child relationships
     const root = d3.hierarchy(hierarchyData)
       .sum(d => d.value)
       .sort((a, b) => b.value - a.value);
     
+    // Apply treemap layout algorithm to calculate rectangle positions and sizes
     this.treemap(root);
     
-    // 绑定数据
+    // Bind data to cell groups using key function for object constancy
+    // Object constancy ensures smooth transitions when data updates
     const cells = this.g.selectAll(".cell")
       .data(root.leaves(), d => d.data.name);
     
-    // 退出动画
+    // Handle exit selection with fade-out animation
     cells.exit()
       .transition()
       .duration(500)
       .style("opacity", 0)
       .remove();
     
-    // 进入 + 更新
+    // Create enter selection for new data elements
     const cellsEnter = cells.enter()
       .append("g")
       .attr("class", "cell")
       .style("opacity", 0);
     
+    // Merge enter and update selections for unified data handling
     const cellsUpdate = cellsEnter.merge(cells);
     
-    // 添加矩形
+    // Add visual elements to new cells
     cellsEnter.append("rect");
     cellsEnter.append("text").attr("class", "size-label");
     cellsEnter.append("text").attr("class", "salary-label");
     cellsEnter.append("g").attr("class", "sparkline");
     
-    // 更新矩形
+    // Update rectangle properties with smooth transitions
     cellsUpdate.select("rect")
       .transition()
       .duration(800)
@@ -116,17 +148,17 @@ class TreemapViz {
       .attr("height", d => d.y1 - d.y0)
       .attr("fill", d => {
         if (!d.data.avgSalary || d.data.avgSalary === 0) {
-          return "#f1f3f4"; // 更浅的灰色
+          return "#f1f3f4";
         }
         return this.colorScale(d.data.avgSalary);
       })
       .attr("stroke", "#ffffff")
       .attr("stroke-width", 3)
-      .attr("rx", 4) // 圆角
+      .attr("rx", 4)
       .attr("ry", 4)
-      .style("filter", "drop-shadow(0 2px 8px rgba(0,0,0,0.1))"); // 添加阴影效果
+      .style("filter", "drop-shadow(0 2px 8px rgba(0,0,0,0.1))");
     
-    // 更新标签样式 - 更好的可读性
+    // Update size labels with intelligent color selection based on background
     cellsUpdate.select(".size-label")
       .transition()
       .duration(800)
@@ -136,7 +168,8 @@ class TreemapViz {
       .attr("font-size", "12px")
       .attr("font-weight", "600")
       .attr("fill", d => {
-        // 根据背景色自动选择文字颜色
+        // d3.color() creates color object for lightness analysis
+        // Automatically choose text color based on background brightness
         const bgColor = d3.color(this.colorScale(d.data.avgSalary || 0));
         return bgColor && bgColor.l < 0.5 ? "#ffffff" : "#2c3e50";
       })
@@ -146,6 +179,7 @@ class TreemapViz {
       })
       .text(d => d.data.name);
     
+    // Update salary labels with consistent formatting
     cellsUpdate.select(".salary-label")
       .transition()
       .duration(800)
@@ -169,7 +203,7 @@ class TreemapViz {
         return "$0.00k avg";
       });
     
-    // 添加公司数量标签
+    // Add job count labels for additional context
     cellsEnter.append("text").attr("class", "count-label");
     cellsUpdate.select(".count-label")
       .transition()
@@ -185,24 +219,30 @@ class TreemapViz {
       })
       .text(d => `${d.data.jobs} jobs`);
     
-    // 添加sparkline
+    // Add sparkline mini-charts showing salary distribution
     this.drawSparklines(cellsUpdate);
     
-    // 进入动画
+    // Entrance animation with staggered timing for visual appeal
     cellsEnter.transition()
       .duration(800)
       .delay((d, i) => i * 100)
       .style("opacity", 1);
     
-    // 交互
+    // Add interactive event handlers
     cellsUpdate
       .on("mouseover", this.handleMouseOver.bind(this))
       .on("mouseout", this.handleMouseOut.bind(this))
       .on("click", this.handleClick.bind(this));
   }
   
+  /**
+   * Draw sparkline mini-charts showing salary distribution within each cell
+   * Creates small line charts displaying min-avg-max salary progression
+   */
   drawSparklines(selection) {
+    // Use D3's each() method to process each data-bound element individually
     selection.select(".sparkline").each(function(d) {
+      // d3.select(this) selects current element in iteration
       const sparkline = d3.select(this);
       sparkline.selectAll("*").remove();
       
@@ -210,9 +250,14 @@ class TreemapViz {
       const height = 8;
       const y = d.y1 - 15;
       
-      if (width < 50) return; // 太小的格子不显示sparkline
+      // Skip sparklines for cells too small to display clearly
+      if (width < 50) return;
       
+      // Prepare data points for min, average, and max salaries
       const data = [d.data.minSalary, d.data.avgSalary, d.data.maxSalary];
+      
+      // Create linear scales for sparkline positioning
+      // d3.scaleLinear() maps data domain to pixel range
       const xScale = d3.scaleLinear()
         .domain([0, 2])
         .range([d.x0 + 5, d.x1 - 5]);
@@ -221,11 +266,14 @@ class TreemapViz {
         .domain(d3.extent(data))
         .range([y + height, y]);
       
+      // Create line generator for sparkline path
+      // d3.line() generates SVG path string from data points
       const line = d3.line()
         .x((d, i) => xScale(i))
         .y(d => yScale(d))
         .curve(d3.curveMonotoneX);
       
+      // Draw sparkline path using line generator
       sparkline.append("path")
         .datum(data)
         .attr("d", line)
@@ -233,7 +281,7 @@ class TreemapViz {
         .attr("stroke-width", 1.5)
         .attr("fill", "none");
       
-      // 添加点
+      // Add data points as small circles
       sparkline.selectAll(".spark-dot")
         .data(data)
         .enter()
@@ -246,6 +294,10 @@ class TreemapViz {
     });
   }
   
+  /**
+   * Categorize job titles into standard career tracks
+   * Provides consistent job classification across dashboard components
+   */
   categorizeJob(jobTitle) {
     const title = jobTitle.toLowerCase();
     if (title.includes("data scientist")) return "Data Scientist";
@@ -255,19 +307,30 @@ class TreemapViz {
     return "Other";
   }
   
+  /**
+   * Handle mouse hover events with visual emphasis
+   * Provides immediate feedback and shows detailed tooltip
+   */
   handleMouseOver(event, d) {
+    // Apply visual emphasis with D3 transitions
+    // d3.select(event.currentTarget) selects the hovered element
     d3.select(event.currentTarget).select("rect")
       .transition()
       .duration(200)
       .attr("stroke-width", 4)
       .attr("stroke", "#1976d2")
       .style("filter", "drop-shadow(0 4px 12px rgba(25,118,210,0.3)) brightness(1.05)")
-      .attr("transform", "scale(1.02)"); // 轻微放大效果
+      .attr("transform", "scale(1.02)");
     
     this.showTooltip(event, d);
   }
   
+  /**
+   * Handle mouse leave events to restore normal appearance
+   * Removes hover effects with smooth transitions
+   */
   handleMouseOut(event, d) {
+    // Restore original visual state
     d3.select(event.currentTarget).select("rect")
       .transition()
       .duration(200)
@@ -279,8 +342,12 @@ class TreemapViz {
     this.hideTooltip();
   }
   
+  /**
+   * Handle click events for company size selection
+   * Dispatches custom event for cross-component communication
+   */
   handleClick(event, d) {
-    // 触发公司规模选择事件
+    // Create custom event for dashboard coordination
     const selectEvent = new CustomEvent("companySizeSelected", { 
       detail: { 
         size: d.data.name,
@@ -290,8 +357,13 @@ class TreemapViz {
     document.dispatchEvent(selectEvent);
   }
   
-  // 修改showTooltip方法
+  /**
+   * Show detailed tooltip with formatted salary information
+   * Uses D3's data join pattern for consistent tooltip management
+   */
   showTooltip(event, d) {
+    // Use data join pattern to create or update single tooltip element
+    // selectAll().data([null]).join() ensures only one tooltip exists
     const tooltip = d3.select("body").selectAll(".treemap-tooltip")
       .data([null])
       .join("div")
@@ -308,12 +380,13 @@ class TreemapViz {
       .style("box-shadow", "0 4px 20px rgba(0,0,0,0.15)")
       .style("backdrop-filter", "blur(10px)");
     
-    // 修复薪资格式化
+    // Format salary values consistently across dashboard
     const formatSalary = (salary) => {
       if (!salary || salary === 0) return "$0.00k";
       return `$${(salary / 1000).toFixed(2)}k`;
     };
     
+    // Build structured HTML content for tooltip
     tooltip.html(`
       <div style="font-weight: 600; color: #1976d2; margin-bottom: 8px;">${d.data.name}</div>
       <div style="margin: 4px 0;"><strong>Job Count:</strong> ${d.data.jobs}</div>
@@ -325,7 +398,12 @@ class TreemapViz {
       .style("opacity", 1);
   }
   
+  /**
+   * Hide tooltip with smooth fade-out transition
+   * Provides clean exit animation for better user experience
+   */
   hideTooltip() {
+    // d3.select() finds tooltip element and applies opacity transition
     d3.select(".treemap-tooltip").style("opacity", 0);
   }
 }
