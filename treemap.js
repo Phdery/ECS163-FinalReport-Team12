@@ -132,11 +132,10 @@ class TreemapViz {
     // Merge enter and update selections for unified data handling
     const cellsUpdate = cellsEnter.merge(cells);
     
-    // Add visual elements to new cells
+    // Add visual elements to new cells (removed sparkline container)
     cellsEnter.append("rect");
     cellsEnter.append("text").attr("class", "size-label");
     cellsEnter.append("text").attr("class", "salary-label");
-    cellsEnter.append("g").attr("class", "sparkline");
     
     // Update rectangle properties with smooth transitions
     cellsUpdate.select("rect")
@@ -219,8 +218,8 @@ class TreemapViz {
       })
       .text(d => `${d.data.jobs} jobs`);
     
-    // Add sparkline mini-charts showing salary distribution
-    this.drawSparklines(cellsUpdate);
+    // Removed sparkline drawing call
+    // this.drawSparklines(cellsUpdate);
     
     // Entrance animation with staggered timing for visual appeal
     cellsEnter.transition()
@@ -233,65 +232,6 @@ class TreemapViz {
       .on("mouseover", this.handleMouseOver.bind(this))
       .on("mouseout", this.handleMouseOut.bind(this))
       .on("click", this.handleClick.bind(this));
-  }
-  
-  /**
-   * Draw sparkline mini-charts showing salary distribution within each cell
-   * Creates small line charts displaying min-avg-max salary progression
-   */
-  drawSparklines(selection) {
-    // Use D3's each() method to process each data-bound element individually
-    selection.select(".sparkline").each(function(d) {
-      // d3.select(this) selects current element in iteration
-      const sparkline = d3.select(this);
-      sparkline.selectAll("*").remove();
-      
-      const width = d.x1 - d.x0 - 10;
-      const height = 8;
-      const y = d.y1 - 15;
-      
-      // Skip sparklines for cells too small to display clearly
-      if (width < 50) return;
-      
-      // Prepare data points for min, average, and max salaries
-      const data = [d.data.minSalary, d.data.avgSalary, d.data.maxSalary];
-      
-      // Create linear scales for sparkline positioning
-      // d3.scaleLinear() maps data domain to pixel range
-      const xScale = d3.scaleLinear()
-        .domain([0, 2])
-        .range([d.x0 + 5, d.x1 - 5]);
-      
-      const yScale = d3.scaleLinear()
-        .domain(d3.extent(data))
-        .range([y + height, y]);
-      
-      // Create line generator for sparkline path
-      // d3.line() generates SVG path string from data points
-      const line = d3.line()
-        .x((d, i) => xScale(i))
-        .y(d => yScale(d))
-        .curve(d3.curveMonotoneX);
-      
-      // Draw sparkline path using line generator
-      sparkline.append("path")
-        .datum(data)
-        .attr("d", line)
-        .attr("stroke", "#333")
-        .attr("stroke-width", 1.5)
-        .attr("fill", "none");
-      
-      // Add data points as small circles
-      sparkline.selectAll(".spark-dot")
-        .data(data)
-        .enter()
-        .append("circle")
-        .attr("class", "spark-dot")
-        .attr("cx", (d, i) => xScale(i))
-        .attr("cy", d => yScale(d))
-        .attr("r", 1.5)
-        .attr("fill", "#333");
-    });
   }
   
   /**
