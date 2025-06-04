@@ -406,22 +406,74 @@ class RadarChart {
     
     recommendations.html("<strong>📚 Learning Recommendations:</strong>");
     
+    const hasIndustryData = this.industryAvg.some(d => d > 0);
+    
+    if (!hasIndustryData) {
+      recommendations.append("div")
+        .style("margin-top", "8px")
+        .style("color", "#757575")
+        .style("font-style", "italic")
+        .text("Select a state or job track to see industry skill requirements");
+      return;
+    }
+    
     // Calculate skill gaps by comparing industry avg to user skills
     const gaps = this.skills.map((skill, i) => ({
       skill,
       gap: this.industryAvg[i] - this.userSkills[i],
+      industryAvg: this.industryAvg[i],
+      userSkill: this.userSkills[i],
       index: i
     }))
-    .filter(d => d.gap > 0.2)
+    .filter(d => d.industryAvg > 0 && d.gap > 0.05)
     .sort((a, b) => b.gap - a.gap);
     
     // Display appropriate message based on skill gaps
     if (gaps.length === 0) {
-      recommendations.append("div")
-        .style("margin-top", "8px")
-        .style("color", "#2e7d32")
-        .style("font-weight", "bold")
-        .text("🎉 Your skills meet industry standards!");
+      const skillsWithDemand = this.skills.map((skill, i) => ({
+        skill,
+        industryAvg: this.industryAvg[i],
+        userSkill: this.userSkills[i],
+        meets: this.userSkills[i] >= this.industryAvg[i]
+      })).filter(d => d.industryAvg > 0);
+      
+      if (skillsWithDemand.length === 0) {
+        recommendations.append("div")
+          .style("margin-top", "8px")
+          .style("color", "#757575")
+          .text("No skill data available for current selection");
+      } else {
+        const allSkillsMeet = skillsWithDemand.every(d => d.meets);
+        
+        if (allSkillsMeet) {
+          recommendations.append("div")
+            .style("margin-top", "8px")
+            .style("color", "#2e7d32")
+            .style("font-weight", "bold")
+            .text("Your skills meet or exceed industry standards!");
+        } else {
+          recommendations.append("div")
+            .style("margin-top", "8px")
+            .style("color", "#ff9800")
+            .style("font-weight", "bold")
+            .text("You're close to industry standards!");
+          
+          const minorGaps = skillsWithDemand.filter(d => !d.meets && (d.industryAvg - d.userSkill) <= 0.05);
+          if (minorGaps.length > 0) {
+            const list = recommendations.append("ul")
+              .style("margin", "8px 0 0 0")
+              .style("padding-left", "20px");
+            
+            minorGaps.forEach(gap => {
+              list.append("li")
+                .style("margin", "4px 0")
+                .style("color", "#424242")
+                .style("font-size", "12px")
+                .html(`<strong>${gap.skill}</strong>: ${(gap.userSkill * 100).toFixed(0)}% → ${(gap.industryAvg * 100).toFixed(0)}% (small gap)`);
+            });
+          }
+        }
+      }
     } else {
       // Create ordered list of top skill improvement areas
       const list = recommendations.append("ul")
@@ -433,7 +485,12 @@ class RadarChart {
         list.append("li")
           .style("margin", "4px 0")
           .style("color", "#424242")
-          .text(`Improve ${gap.skill} skills (Gap: ${(gap.gap * 100).toFixed(0)}%)`);
+          .html(`Improve <strong>${gap.skill}</strong> skills<br>
+                <span style="font-size: 11px; color: #666;">
+                  Industry avg: ${(gap.industryAvg * 100).toFixed(0)}% | 
+                  Your level: ${(gap.userSkill * 100).toFixed(0)}% | 
+                  Gap: ${(gap.gap * 100).toFixed(0)}%
+                </span>`);
       });
     }
   }
