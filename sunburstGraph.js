@@ -141,7 +141,10 @@ function buildHierarchyData(stateData) {
             jobTitles[jobCategory] = {
                 name: jobCategory,
                 value: 0,
-                children: []
+                children: [],
+                // Add salary tracking arrays
+                salaries: [],
+                jobs: 0
             };
             
             // Create child nodes for each skill cluster
@@ -149,13 +152,23 @@ function buildHierarchyData(stateData) {
                 jobTitles[jobCategory].children.push({
                     name: skillClusters[skill],
                     value: 0,
-                    skill: skill
+                    skill: skill,
+                    // Add salary tracking for skills too
+                    salaries: [],
+                    jobs: 0
                 });
             });
         }
         
         // Increment job count for this category
         jobTitles[jobCategory].value++;
+        jobTitles[jobCategory].jobs++;
+        
+        // Add salary data if available
+        const salary = parseFloat(d.avg) || 0;
+        if (salary > 0) {
+            jobTitles[jobCategory].salaries.push(salary);
+        }
         
         // Count skill occurrences within job category
         Object.keys(skillClusters).forEach(skill => {
@@ -166,7 +179,38 @@ function buildHierarchyData(stateData) {
                 );
                 if (skillNode) {
                     skillNode.value++;
+                    skillNode.jobs++;
+                    // Add salary to skill node as well
+                    if (salary > 0) {
+                        skillNode.salaries.push(salary);
+                    }
                 }
+            }
+        });
+    });
+    
+    // Calculate salary statistics for each job category and skill
+    Object.values(jobTitles).forEach(category => {
+        if (category.salaries.length > 0) {
+            category.avgSalary = d3.mean(category.salaries);
+            category.minSalary = d3.min(category.salaries);
+            category.maxSalary = d3.max(category.salaries);
+        } else {
+            category.avgSalary = 0;
+            category.minSalary = 0;
+            category.maxSalary = 0;
+        }
+        
+        // Calculate salary statistics for each skill within the category
+        category.children.forEach(skill => {
+            if (skill.salaries.length > 0) {
+                skill.avgSalary = d3.mean(skill.salaries);
+                skill.minSalary = d3.min(skill.salaries);
+                skill.maxSalary = d3.max(skill.salaries);
+            } else {
+                skill.avgSalary = 0;
+                skill.minSalary = 0;
+                skill.maxSalary = 0;
             }
         });
     });
@@ -325,10 +369,10 @@ function drawSunburst(hierarchyData, stateName, sunburstSvg) {
 function showTooltip(event, d) {
     // Use data join pattern to create or update tooltip
     // selectAll().data([null]).join() ensures single tooltip element
-    const tooltip = d3.select("body").selectAll(".treemap-tooltip")
+    const tooltip = d3.select("body").selectAll(".sunburst-tooltip")
         .data([null])
         .join("div")
-        .attr("class", "treemap-tooltip")
+        .attr("class", "sunburst-tooltip")
         .style("position", "absolute")
         .style("background", "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,250,0.95) 100%)")
         .style("color", "#2c3e50")
@@ -343,17 +387,30 @@ function showTooltip(event, d) {
     
     // Format salary values consistently across components
     const formatSalary = (salary) => {
-        if (!salary || salary === 0) return "$0.00k";
-        return `$${(salary / 1000).toFixed(2)}k`;
+        if (!salary || salary === 0) return "$0k";
+        return `$${(salary / 1000).toFixed(0)}k`;
     };
     
     // Build tooltip content with structured HTML
-    tooltip.html(`
-        <div style="font-weight: 600; color: #1976d2; margin-bottom: 8px;">${d.data.name}</div>
-        <div style="margin: 4px 0;"><strong>Job Count:</strong> ${d.data.jobs}</div>
-        <div style="margin: 4px 0;"><strong>Average Salary:</strong> ${formatSalary(d.data.avgSalary)}</div>
-        <div style="margin: 4px 0;"><strong>Salary Range:</strong> ${formatSalary(d.data.minSalary)} - ${formatSalary(d.data.maxSalary)}</div>
-    `)
+    let tooltipContent = `<div style="font-weight: 600; color: #1976d2; margin-bottom: 8px;">${d.data.name}</div>`;
+    
+    if (d.depth === 1) {
+        // Job category tooltip
+        tooltipContent += `
+            <div style="margin: 4px 0;"><strong>Job Count:</strong> ${d.data.jobs || d.value}</div>
+            <div style="margin: 4px 0;"><strong>Average Salary:</strong> ${formatSalary(d.data.avgSalary)}</div>
+            <div style="margin: 4px 0;"><strong>Salary Range:</strong> ${formatSalary(d.data.minSalary)} - ${formatSalary(d.data.maxSalary)}</div>
+        `;
+    } else if (d.depth === 2) {
+        // Skill tooltip
+        tooltipContent += `
+            <div style="margin: 4px 0;"><strong>Jobs requiring this skill:</strong> ${d.data.jobs || d.value}</div>
+            <div style="margin: 4px 0;"><strong>Average Salary:</strong> ${formatSalary(d.data.avgSalary)}</div>
+            <div style="margin: 4px 0;"><strong>Salary Range:</strong> ${formatSalary(d.data.minSalary)} - ${formatSalary(d.data.maxSalary)}</div>
+        `;
+    }
+    
+    tooltip.html(tooltipContent)
         .style("left", (event.pageX + 15) + "px")
         .style("top", (event.pageY - 10) + "px")
         .style("opacity", 1);
