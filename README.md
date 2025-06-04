@@ -2,20 +2,13 @@
 
 ## Description
 
-This repository contains **Team 12’s final project for UC Davis ECS 163 (Human‑Computer Interaction)**.
-Our goal is to help job‑seekers quickly answer three common questions about the 2024 tech job market:
+SalaryScope is an interactive salary‑exploration dashboard built for UC Davis ECS 163, Team 12. It transforms the 2024 Kaggle Data‑Science Job Salaries dataset into a concise narrative that answers three common questions: Where in the United States pays the most, what roles and skills command that pay, and how company size shapes the outcome.
 
-1. **Where** in the United States are data‑science salaries the highest?
-2. **What** skills and career tracks lead to better pay within each state?
-3. **How** do company size and work‑mode (remote vs. on‑site) influence earnings?
+A lightweight preprocessing script converts every salary to U.S. dollars, maps employee residences to two‑letter state codes, removes extreme outliers, and writes two compact JSON files (state summary and row‑level detail) that together stay under 100 KB.
 
-We ingest and clean the **Kaggle “Data‑Science Job Salaries 2024”** dataset, convert every salary to USD, normalise location codes to USPS state abbreviations, and remove statistical outliers.
-Two lightweight JSON files are produced:
+The browser then loads once and does the rest. Using vanilla ES6 and D3 v7, the page keeps five linked views in sync: a choropleth map, sunburst, treemap, Sankey diagram, and radar chart. Each click on one view instantly filters the others, guiding readers from national overview to personal skill gaps in a single flow.
 
-* `state‑summary.json` — sample count plus highest, median and lowest salary for each state (powering the choropleth map).
-* `detailed‑records.json` — row‑level data (`state / track / dominant skill / company size / salary`) for instant client‑side filtering.
-
-The front‑end is a **plain HTML/CSS/JavaScript site**.  All interactivity is written in vanilla *ES6* and **D3.js v7**; there is **no build step, framework, or Node.js dependency**.
+Because everything is static HTML/CSS/JS, any simple HTTP server—VS Code Live Server, python -m http.server, or GitHub Pages—can host it; no build step or backend is required.
 
 ---
 
