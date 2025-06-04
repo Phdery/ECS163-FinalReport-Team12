@@ -2,13 +2,13 @@
 
 ## Description
 
-SalaryScope is an interactive salary‑exploration dashboard built for UC Davis ECS 163, Team 12. It transforms the 2024 Kaggle Data‑Science Job Salaries dataset into a concise narrative that answers three common questions: Where in the United States pays the most, what roles and skills command that pay, and how company size shapes the outcome.
+**SalaryScope** is an interactive salary‑exploration dashboard built for UC Davis ECS 163, Team 12 (Qingyue Yang, Yixin Mao, Yitian Zhang, Yuchen Rui). It transforms the 2024 Kaggle Data‑Science Job Salaries dataset into a concise narrative that answers three common questions: Where in the United States pays the most, what roles and skills command that pay, and how company size shapes the outcome.
 
 A lightweight preprocessing script converts every salary to U.S. dollars, maps employee residences to two‑letter state codes, removes extreme outliers, and writes two compact JSON files (state summary and row‑level detail) that together stay under 100 KB.
 
 The browser then loads once and does the rest. Using vanilla ES6 and D3 v7, the page keeps five linked views in sync: a choropleth map, sunburst, treemap, Sankey diagram, and radar chart. Each click on one view instantly filters the others, guiding readers from national overview to personal skill gaps in a single flow.
 
-Because everything is static HTML/CSS/JS, any simple HTTP server—VS Code Live Server, python -m http.server, or GitHub Pages—can host it; no build step or backend is required.
+Because everything is static HTML/CSS/JS, any simple HTTP server—VS Code Live Server or python -m http.server; no build step or backend is required.
 
 ---
 
