@@ -271,7 +271,7 @@ class RadarChart {
     
     // Draw user skills line if any skills are set
     if (this.userSkills.some(d => d > 0)) {
-      this.drawRadarPath(this.userSkills, "#1f77b4", "Your Skills", 0.7);
+      this.drawRadarPath(this.userSkills, "#1f77b4", "Your Skills", 1.5);
     }
     
     // Add chart legend and learning recommendations
@@ -353,34 +353,38 @@ class RadarChart {
     // Remove existing legend before redrawing
     this.g.selectAll(".legend").remove();
     
-    // Create legend group positioned below chart
+    // Create legend group positioned below chart with better spacing
     const legend = this.g.append("g")
       .attr("class", "legend")
-      .attr("transform", `translate(${-this.radius}, ${this.radius + 20})`);
-    
+      .attr("transform", `translate(${-this.radius}, ${this.radius + 30})`);
+  
     // Define legend entries with colors and labels
     const legendData = [
       { color: "#ff7f0e", label: "Industry Average" },
       { color: "#1f77b4", label: "Your Skills" }
     ];
     
-    // Create legend entry for each data series
+    // Create legend entry for each data series with improved spacing
     legendData.forEach((d, i) => {
       const g = legend.append("g")
-        .attr("transform", `translate(${i * 80}, 0)`);
-      
+        .attr("transform", `translate(${i * 120}, 0)`);
+    
       // Draw color line indicator
       g.append("line")
         .attr("x1", 0)
         .attr("x2", 15)
+        .attr("y1", 0)
+        .attr("y2", 0)
         .attr("stroke", d.color)
-        .attr("stroke-width", 2);
-      
+        .attr("stroke-width", 3);
+    
       // Add text label next to color indicator
       g.append("text")
         .attr("x", 20)
+        .attr("y", 0)
         .attr("dy", "0.35em")
-        .attr("font-size", "10px")
+        .attr("font-size", "11px")
+        .attr("font-weight", "500")
         .attr("fill", "#333")
         .text(d.label);
     });
