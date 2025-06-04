@@ -323,7 +323,7 @@ function drawSunburst(hierarchyData, stateName, sunburstSvg) {
         .style("opacity", 0)
         .text(d => {
             if (d.depth === 1) {
-                return `${d.data.name} (${d.value})`;
+                return `${d.data.name} (${d.data.jobs || d.value})`;
             }
             return d.data.name;
         });
@@ -334,9 +334,19 @@ function drawSunburst(hierarchyData, stateName, sunburstSvg) {
         .delay(800)
         .style("opacity", 1);
     
+    let isHovering = false;
+    let hoverTimeout;
+    
     // Add interactive hover effects
     paths.on("mouseover", function(event, d) {
         if (d.depth === 0) return;
+        
+        if (hoverTimeout) {
+            clearTimeout(hoverTimeout);
+            hoverTimeout = null;
+        }
+        
+        isHovering = true;
         
         // Highlight hovered segment with visual emphasis
         // d3.select(this) selects current element for styling
@@ -348,8 +358,14 @@ function drawSunburst(hierarchyData, stateName, sunburstSvg) {
         
         showTooltip(event, d);
     })
+    .on("mousemove", function(event, d) {
+        if (d.depth === 0) return;
+        updateTooltipPosition(event);
+    })
     .on("mouseout", function(event, d) {
         if (d.depth === 0) return;
+        
+        isHovering = false;
         
         // Restore normal segment appearance
         d3.select(this)
@@ -358,7 +374,12 @@ function drawSunburst(hierarchyData, stateName, sunburstSvg) {
             .style("opacity", 0.9)
             .attr("stroke-width", 2);
         
-        hideTooltip();
+        // Set timeout to hide tooltip after brief delay
+        hoverTimeout = setTimeout(() => {
+            if (!isHovering) {
+                hideTooltip();
+            }
+        }, 150);
     });
 }
 
@@ -380,10 +401,23 @@ function showTooltip(event, d) {
         .style("border-radius", "8px")
         .style("font-size", "13px")
         .style("border", "1px solid rgba(0,0,0,0.1)")
-        .style("pointer-events", "none")
+        .style("pointer-events", "auto")
         .style("z-index", "10000")
         .style("box-shadow", "0 4px 20px rgba(0,0,0,0.15)")
         .style("backdrop-filter", "blur(10px)");
+    
+    // Set initial opacity to 0 for fade-in effect
+    tooltip.on("mouseenter", function() {
+        isHovering = true;
+        if (hoverTimeout) {
+            clearTimeout(hoverTimeout);
+            hoverTimeout = null;
+        }
+    })
+    .on("mouseleave", function() {
+        isHovering = false;
+        hideTooltip();
+    });
     
     // Format salary values consistently across components
     const formatSalary = (salary) => {
@@ -396,15 +430,17 @@ function showTooltip(event, d) {
     
     if (d.depth === 1) {
         // Job category tooltip
+        const jobCount = d.data.jobs || d.value;
         tooltipContent += `
-            <div style="margin: 4px 0;"><strong>Job Count:</strong> ${d.data.jobs || d.value}</div>
+            <div style="margin: 4px 0;"><strong>Job Count:</strong> ${jobCount}</div>
             <div style="margin: 4px 0;"><strong>Average Salary:</strong> ${formatSalary(d.data.avgSalary)}</div>
             <div style="margin: 4px 0;"><strong>Salary Range:</strong> ${formatSalary(d.data.minSalary)} - ${formatSalary(d.data.maxSalary)}</div>
         `;
     } else if (d.depth === 2) {
         // Skill tooltip
+        const skillJobCount = d.data.jobs || d.value;
         tooltipContent += `
-            <div style="margin: 4px 0;"><strong>Jobs requiring this skill:</strong> ${d.data.jobs || d.value}</div>
+            <div style="margin: 4px 0;"><strong>Jobs requiring this skill:</strong> ${skillJobCount}</div>
             <div style="margin: 4px 0;"><strong>Average Salary:</strong> ${formatSalary(d.data.avgSalary)}</div>
             <div style="margin: 4px 0;"><strong>Salary Range:</strong> ${formatSalary(d.data.minSalary)} - ${formatSalary(d.data.maxSalary)}</div>
         `;
@@ -417,6 +453,16 @@ function showTooltip(event, d) {
 }
 
 /**
+ * Update tooltip position without recreating content
+ * Used during mousemove events for smooth tooltip tracking
+ */
+function updateTooltipPosition(event) {
+    d3.select(".sunburst-tooltip")
+        .style("left", (event.pageX + 15) + "px")
+        .style("top", (event.pageY - 10) + "px");
+}
+
+/**
  * Hide tooltip with smooth transition
  * Provides clean exit animation for better user experience
  */
@@ -425,7 +471,11 @@ function hideTooltip() {
     d3.select(".sunburst-tooltip")
         .transition()
         .duration(200)
-        .style("opacity", 0);
+        .style("opacity", 0)
+        .on("end", function() {
+            // 完全移除tooltip元素
+            d3.select(this).remove();
+        });
 }
 
 // Initialize visualization when DOM content is fully loaded
